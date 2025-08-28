@@ -1,116 +1,366 @@
-let mediaRecorder;
-let audioChunks = [];
-let isInterviewing = false;
-let isRecording = false;
-let whisperTranscribing = false;
-let lastTranscript = '';
-let stream = null;
-
-const startBtn = document.getElementById('start-interview');
-const stopBtn = document.getElementById('stop-interview');
-const answerContainer = document.getElementById('answer-container');
-const apiKeyInput = document.getElementById('api-key');
-const resumeInput = document.getElementById('resume-text');
-const statusIndicator = document.getElementById('status-indicator');
-const closeBtn = document.getElementById('close-overlay');
-const overlayContainer = document.getElementById('overlay-container');
-const controlsSection = document.getElementById('controls');
-const micToggleBtn = document.getElementById('mic-toggle');
-const micIcon = document.getElementById('mic-icon');
-const answerOuter = document.getElementById('answer-outer');
-const dragHandle = document.getElementById('drag-handle');
-
-// Drag functionality
-let isDragging = false;
-let dragOffset = { x: 0, y: 0 };
-
-dragHandle.addEventListener('mousedown', (e) => {
-  isDragging = true;
-  dragOffset.x = e.clientX;
-  dragOffset.y = e.clientY;
-  dragHandle.style.background = 'rgba(60,60,60,0.8)';
-});
-
-document.addEventListener('mousemove', (e) => {
-  if (!isDragging) return;
-  
-  const deltaX = e.clientX - dragOffset.x;
-  const deltaY = e.clientY - dragOffset.y;
-  
-  // Send drag message to main process
-  if (window.electronAPI && window.electronAPI.dragWindow) {
-    window.electronAPI.dragWindow(deltaX, deltaY);
+// Modern, optimized AI Interview Assistant
+class InterviewAssistant {
+  constructor() {
+    this.isInterviewing = false;
+    this.isRecording = false;
+    this.mediaRecorder = null;
+    this.audioChunks = [];
+    this.stream = null;
+    this.lastTranscript = '';
+    this.whisperTranscribing = false;
+    
+    this.initializeElements();
+    this.bindEvents();
+    this.updateProviderInfo();
   }
-  
-  dragOffset.x = e.clientX;
-  dragOffset.y = e.clientY;
-});
 
-document.addEventListener('mouseup', () => {
-  if (isDragging) {
-    isDragging = false;
-    dragHandle.style.background = 'rgba(30,30,30,0.7)';
+  initializeElements() {
+    // Main elements
+    this.mainPanel = document.getElementById('main-panel');
+    this.setupContent = document.getElementById('setup-content');
+    this.interviewContent = document.getElementById('interview-content');
+    this.micIndicator = document.getElementById('mic-indicator');
+    
+    // Setup elements
+    this.resumeInput = document.getElementById('resume-input');
+    this.providerSelect = document.getElementById('provider-select');
+    this.apiKeyInput = document.getElementById('api-key-input');
+    this.startBtn = document.getElementById('start-btn');
+    this.statusIndicator = document.getElementById('status-indicator');
+    
+    // Interview elements
+    this.answerContainer = document.getElementById('answer-container');
+    this.stopBtn = document.getElementById('stop-btn');
+    this.interviewStatus = document.getElementById('interview-status');
+    
+    // Control elements
+    this.minimizeBtn = document.getElementById('minimize-btn');
+    this.closeBtn = document.getElementById('close-btn');
+    this.dragHandle = document.getElementById('drag-handle');
   }
-});
 
-function setStatus(text, highlight) {
-  statusIndicator.innerText = text;
-  if (highlight === 'recording') {
-    statusIndicator.style.color = '#00ff99';
-    answerContainer.style.boxShadow = '0 0 0 4px #00ff9955';
-  } else if (highlight === 'error') {
-    statusIndicator.style.color = '#ff4d4f';
-    answerContainer.style.boxShadow = 'none';
-  } else {
-    statusIndicator.style.color = '#b0b0b0';
-    answerContainer.style.boxShadow = 'none';
+  bindEvents() {
+    // Setup events
+    this.startBtn.addEventListener('click', () => this.startInterview());
+    this.providerSelect.addEventListener('change', () => this.updateProviderInfo());
+    
+    // Interview events
+    this.stopBtn.addEventListener('click', () => this.stopInterview());
+    
+    // Microphone events
+    if (this.micIndicator) {
+      console.log('Setting up microphone click listener');
+      this.micIndicator.addEventListener('click', (e) => {
+        console.log('Microphone clicked!');
+        e.preventDefault();
+        this.toggleRecording();
+      });
+    } else {
+      console.error('❌ Microphone indicator not found!');
+    }
+    
+    // Control events
+    this.minimizeBtn.addEventListener('click', () => this.minimize());
+    this.closeBtn.addEventListener('click', () => this.close());
+    
+    // Dragging functionality
+    this.setupDragging();
+    
+    // Keyboard events
+    document.addEventListener('keydown', (e) => this.handleKeydown(e));
+    
+    // Prevent default drag behavior on inputs
+    this.preventDragOnInputs();
   }
-}
 
-function setMicActive(active) {
-  if (active) {
-    micToggleBtn.style.background = '#00ff99';
-    micIcon.style.color = '#222';
-    micIcon.style.opacity = '1';
-    micIcon.innerHTML = `<svg viewBox="0 0 24 24" fill="#222" width="18" height="18"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a1 1 0 1 0-2 0 5 5 0 0 1-10 0 1 1 0 1 0-2 0 7 7 0 0 0 6 6.92V21a1 1 0 1 0 2 0v-2.08A7 7 0 0 0 19 12z"></path></svg>`;
-  } else {
-    micToggleBtn.style.background = 'rgba(30,30,30,0.7)';
-    micIcon.style.color = '#fff';
-    micIcon.style.opacity = '0.7';
-    micIcon.innerHTML = `<svg viewBox="0 0 24 24" fill="#fff" width="18" height="18"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a1 1 0 1 0-2 0 5 5 0 0 1-10 0 1 1 0 1 0-2 0 7 7 0 0 0 6 6.92V21a1 1 0 1 0 2 0v-2.08A7 7 0 0 0 19 12z"></path></svg>`;
-  }
-}
-
-function showAnswerContainer(show) {
-  answerOuter.style.display = show ? 'flex' : 'none';
-}
-
-async function sendToWhisper(blob, apiKey) {
-  setStatus('Transcribing...', '');
-  const formData = new FormData();
-  formData.append('file', blob, 'audio.webm');
-  formData.append('model', 'whisper-1');
-  try {
-    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: formData
+  preventDragOnInputs() {
+    const inputs = document.querySelectorAll('input, textarea, select');
+    inputs.forEach(input => {
+      input.addEventListener('mousedown', (e) => {
+        e.stopPropagation();
+      });
     });
-    if (!response.ok) throw new Error('Whisper API error');
-    const data = await response.json();
-    return data.text;
-  } catch (err) {
-    setStatus('Whisper error: ' + err.message, 'error');
-    return '';
   }
-}
 
-async function sendToGPT(question, resume, apiKey) {
-  setStatus('Getting answer...', '');
-  const systemPrompt = `You are helping in a live interview. Use the following resume to answer as if you are the candidate. Ignore any unrelated speech or background talk. Focus on the actual interview question and answer smartly as per the resume.\n\nResume:\n${resume}`;
-  try {
+  updateProviderInfo() {
+    const selectedProvider = this.providerSelect.value;
+    const provider = this.getProviderConfig(selectedProvider);
+    
+    if (provider.free) {
+      this.apiKeyInput.placeholder = 'API Key (Optional for free tier)';
+      this.apiKeyInput.style.borderColor = 'rgba(0, 255, 153, 0.5)';
+    } else {
+      this.apiKeyInput.placeholder = 'API Key Required';
+      this.apiKeyInput.style.borderColor = 'rgba(255, 77, 79, 0.5)';
+    }
+  }
+
+  getProviderConfig(provider) {
+    const configs = {
+      gemini: {
+        name: 'Google Gemini',
+        free: true,
+        info: 'Free tier: 15 req/min, 1500/day'
+      },
+      openai: {
+        name: 'OpenAI GPT',
+        free: false,
+        info: 'Pay per use: $0.006/min audio + $0.0015/1K tokens'
+      },
+      grok: {
+        name: 'Grok AI',
+        free: false,
+        info: 'Requires X Premium+ subscription'
+      },
+      claude: {
+        name: 'Anthropic Claude',
+        free: false,
+        info: 'Pay per use: $0.003/1K input + $0.015/1K output'
+      }
+    };
+    return configs[provider] || configs.gemini;
+  }
+
+  async startInterview() {
+    const resume = this.resumeInput.value.trim();
+    if (!resume) {
+      this.showStatus('Please paste your resume first.', 'error');
+      return;
+    }
+
+    const selectedProvider = this.providerSelect.value;
+    const provider = this.getProviderConfig(selectedProvider);
+    
+    if (!provider.free && !this.apiKeyInput.value.trim()) {
+      this.showStatus(`Please enter your ${provider.name} API key.`, 'error');
+      return;
+    }
+
+    try {
+      // Request microphone access
+      this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.mediaRecorder = new MediaRecorder(this.stream, { mimeType: 'audio/webm' });
+      
+      // Setup media recorder events
+      this.setupMediaRecorder();
+      
+      // Switch to interview mode
+      this.switchToInterviewMode();
+      
+      this.showStatus(`Interview started with ${provider.name}. Press SPACEBAR or click mic to record.`, 'success');
+      
+    } catch (error) {
+      this.showStatus(`Microphone error: ${error.message}`, 'error');
+    }
+  }
+
+  setupMediaRecorder() {
+    this.mediaRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        this.audioChunks.push(event.data);
+      }
+    };
+
+    this.mediaRecorder.onstop = async () => {
+      if (this.audioChunks.length > 0 && this.isInterviewing) {
+        const blob = new Blob(this.audioChunks, { type: 'audio/webm' });
+        this.audioChunks = [];
+        await this.processAudio(blob);
+      }
+    };
+  }
+
+  switchToInterviewMode() {
+    this.isInterviewing = true;
+    this.setupContent.classList.add('hidden');
+    this.interviewContent.classList.remove('hidden');
+    this.micIndicator.classList.remove('hidden');
+    
+    // Add fade-in animation
+    this.interviewContent.classList.add('fade-in');
+  }
+
+  switchToSetupMode() {
+    this.isInterviewing = false;
+    this.interviewContent.classList.add('hidden');
+    this.setupContent.classList.remove('hidden');
+    this.micIndicator.classList.add('hidden');
+    
+    // Reset answer container
+    this.answerContainer.textContent = '🎤 Click the microphone or press SPACEBAR to start recording your question...';
+    this.answerContainer.classList.remove('has-answer');
+  }
+
+  async stopInterview() {
+    this.isInterviewing = false;
+    this.isRecording = false;
+    
+    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+      this.mediaRecorder.stop();
+    }
+    
+    if (this.stream) {
+      this.stream.getTracks().forEach(track => track.stop());
+      this.stream = null;
+    }
+    
+    this.micIndicator.classList.remove('recording');
+    this.switchToSetupMode();
+    this.showStatus('Interview stopped.', 'info');
+  }
+
+  toggleRecording() {
+    if (!this.isInterviewing) return;
+    
+    if (!this.isRecording) {
+      this.startRecording();
+    } else {
+      this.stopRecording();
+    }
+  }
+
+  startRecording() {
+    console.log('Attempting to start recording...');
+    console.log('MediaRecorder state:', this.mediaRecorder?.state);
+    console.log('Is interviewing:', this.isInterviewing);
+    
+    if (!this.mediaRecorder) {
+      this.showInterviewStatus('❌ Microphone not initialized. Please restart interview.', 'error');
+      return;
+    }
+    
+    if (this.mediaRecorder.state === 'inactive') {
+      this.audioChunks = [];
+      this.mediaRecorder.start(1000); // Record in 1-second chunks
+      this.isRecording = true;
+      this.micIndicator.classList.add('recording');
+      this.showInterviewStatus('🎤 Recording... Click mic or press SPACEBAR to stop.', 'recording');
+      console.log('Recording started successfully');
+    } else {
+      console.log('MediaRecorder not in inactive state:', this.mediaRecorder.state);
+      this.showInterviewStatus('❌ Recording already in progress', 'error');
+    }
+  }
+
+  stopRecording() {
+    console.log('Attempting to stop recording...');
+    console.log('MediaRecorder state:', this.mediaRecorder?.state);
+    
+    if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+      this.mediaRecorder.stop();
+      this.isRecording = false;
+      this.micIndicator.classList.remove('recording');
+      this.showInterviewStatus('🔄 Processing audio...', 'processing');
+      console.log('Recording stopped successfully');
+    } else {
+      console.log('MediaRecorder not in recording state:', this.mediaRecorder?.state);
+      this.showInterviewStatus('❌ No active recording to stop', 'error');
+    }
+  }
+
+  async processAudio(blob) {
+    if (this.whisperTranscribing) return;
+    this.whisperTranscribing = true;
+    
+    const selectedProvider = this.providerSelect.value;
+    const apiKey = this.apiKeyInput.value.trim();
+    const resume = this.resumeInput.value.trim();
+    
+    try {
+      // Transcribe audio
+      const transcript = await this.transcribeAudio(blob, selectedProvider, apiKey);
+      
+      if (transcript && transcript !== this.lastTranscript) {
+        this.lastTranscript = transcript;
+        
+        // Get AI response
+        const answer = await this.getAIResponse(transcript, resume, selectedProvider, apiKey);
+        
+        if (answer) {
+          this.displayAnswer(answer);
+          this.showInterviewStatus('Ready. Press SPACEBAR or click mic to record.', 'ready');
+        } else {
+          this.showInterviewStatus('No answer received.', 'error');
+        }
+      } else if (!transcript) {
+        this.showInterviewStatus('No speech detected.', 'warning');
+      }
+      
+    } catch (error) {
+      this.showInterviewStatus(`Error: ${error.message}`, 'error');
+    } finally {
+      this.whisperTranscribing = false;
+    }
+  }
+
+  async transcribeAudio(blob, provider, apiKey) {
+    // For now, use OpenAI Whisper as it's the most reliable
+    // In the future, we can implement provider-specific audio transcription
+    return await this.transcribeWithOpenAI(blob, apiKey);
+  }
+
+  async transcribeWithOpenAI(blob, apiKey) {
+    const formData = new FormData();
+    formData.append('file', blob, 'audio.webm');
+    formData.append('model', 'whisper-1');
+    
+    try {
+      const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: formData
+      });
+      
+      if (!response.ok) throw new Error('Transcription failed');
+      
+      const data = await response.json();
+      return data.text;
+    } catch (error) {
+      throw new Error(`Transcription error: ${error.message}`);
+    }
+  }
+
+  async getAIResponse(question, resume, provider, apiKey) {
+    const systemPrompt = `You are helping in a live interview. Use the following resume to answer as if you are the candidate. Ignore any unrelated speech or background talk. Focus on the actual interview question and answer smartly as per the resume.\n\nResume:\n${resume}`;
+    
+    try {
+      if (provider === 'ollama') {
+        const model = document.getElementById('ollama-model-select').value;
+        return await this.callOllamaAPI(question, systemPrompt, model);
+      } else if (provider === 'gemini') {
+        return await this.callGeminiAPI(question, systemPrompt, apiKey);
+      } else if (provider === 'openai') {
+        return await this.callOpenAIAPI(question, systemPrompt, apiKey);
+      } else if (provider === 'grok') {
+        return await this.callGrokAPI(question, systemPrompt, apiKey);
+      } else if (provider === 'claude') {
+        return await this.callClaudeAPI(question, systemPrompt, apiKey);
+      }
+    } catch (error) {
+      throw new Error(`AI API error: ${error.message}`);
+    }
+  }
+
+  async callGeminiAPI(question, systemPrompt, apiKey) {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{ text: `${systemPrompt}\n\nQuestion: ${question}` }]
+        }]
+      })
+    });
+    
+    if (!response.ok) throw new Error('Gemini API failed');
+    
+    const data = await response.json();
+    return data.candidates[0].content.parts[0].text.trim();
+  }
+
+  async callOpenAIAPI(question, systemPrompt, apiKey) {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -125,176 +375,94 @@ async function sendToGPT(question, resume, apiKey) {
         ]
       })
     });
-    if (!response.ok) throw new Error('OpenAI GPT error');
+    
+    if (!response.ok) throw new Error('OpenAI API failed');
+    
     const data = await response.json();
     return data.choices[0].message.content.trim();
-  } catch (err) {
-    setStatus('GPT error: ' + err.message, 'error');
-    return '';
   }
-}
 
-async function processAudioChunk(blob) {
-  if (whisperTranscribing) return; // avoid overlapping
-  whisperTranscribing = true;
-  const apiKey = apiKeyInput.value.trim();
-  const resume = resumeInput.value.trim();
-  if (!apiKey || !resume) {
-    setStatus('Please enter your OpenAI API key and paste your resume.', 'error');
-    whisperTranscribing = false;
-    return;
+  async callGrokAPI(question, systemPrompt, apiKey) {
+    const response = await fetch('https://api.x.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'grok-beta',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: question }
+        ]
+      })
+    });
+    
+    if (!response.ok) throw new Error('Grok API failed');
+    
+    const data = await response.json();
+    return data.choices[0].message.content.trim();
   }
-  const transcript = await sendToWhisper(blob, apiKey);
-  if (transcript && transcript !== lastTranscript) {
-    lastTranscript = transcript;
-    const answer = await sendToGPT(transcript, resume, apiKey);
-    if (answer) answerContainer.innerText = answer;
-    else answerContainer.innerText = 'No answer.';
-    setStatus('Ready. Press spacebar to record.', '');
-  } else if (!transcript) {
-    answerContainer.innerText = 'No speech detected.';
-    setStatus('Ready. Press spacebar to record.', '');
-  }
-  whisperTranscribing = false;
-}
 
-function startRecording() {
-  if (!mediaRecorder || mediaRecorder.state === 'inactive') {
-    audioChunks = [];
-    mediaRecorder.start();
-    isRecording = true;
-    setStatus('Recording... Click mic or press spacebar to stop.', 'recording');
-    setMicActive(true);
+  async callClaudeAPI(question, systemPrompt, apiKey) {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-3-sonnet-20240229',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: `${systemPrompt}\n\nQuestion: ${question}` }]
+      })
+    });
+    
+    if (!response.ok) throw new Error('Claude API failed');
+    
+    const data = await response.json();
+    return data.content[0].text.trim();
   }
-}
 
-function stopRecording() {
-  if (mediaRecorder && mediaRecorder.state === 'recording') {
-    mediaRecorder.stop();
-    isRecording = false;
-    setStatus('Processing...', '');
-    setMicActive(false);
+  displayAnswer(answer) {
+    this.answerContainer.textContent = answer;
+    this.answerContainer.classList.add('has-answer');
   }
-}
 
-function handleSpacebar(e) {
-  if (!isInterviewing) return;
-  if (e.code === 'Space') {
-    e.preventDefault();
-    if (!isRecording) {
-      startRecording();
-    } else {
-      stopRecording();
+  showStatus(message, type = 'info') {
+    this.statusIndicator.textContent = message;
+    this.statusIndicator.className = `status-indicator ${type}`;
+  }
+
+  showInterviewStatus(message, type = 'info') {
+    this.interviewStatus.textContent = message;
+    this.interviewStatus.className = `status-indicator ${type}`;
+  }
+
+  handleKeydown(event) {
+    if (!this.isInterviewing) return;
+    
+    if (event.code === 'Space') {
+      event.preventDefault();
+      this.toggleRecording();
+    }
+  }
+
+  minimize() {
+    if (window.electronAPI && window.electronAPI.minimize) {
+      window.electronAPI.minimize();
+    }
+  }
+
+  close() {
+    if (window.electronAPI && window.electronAPI.close) {
+      window.electronAPI.close();
     }
   }
 }
 
-// Global keyboard listener that works even when window is not focusable
-function handleGlobalKeydown(e) {
-  if (!isInterviewing) return;
-  if (e.code === 'Space') {
-    e.preventDefault();
-    if (!isRecording) {
-      startRecording();
-    } else {
-      stopRecording();
-    }
-  }
-}
-
-// Add global keyboard listener
-document.addEventListener('keydown', handleGlobalKeydown);
-
-micToggleBtn.onclick = () => {
-  if (!isInterviewing) return;
-  if (!isRecording) {
-    startRecording();
-  } else {
-    stopRecording();
-  }
-};
-
-startBtn.onclick = async () => {
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    setStatus('Microphone access not supported.', 'error');
-    return;
-  }
-  const apiKey = apiKeyInput.value.trim();
-  const resume = resumeInput.value.trim();
-  if (!apiKey || !resume) {
-    setStatus('Please enter your OpenAI API key and paste your resume.', 'error');
-    return;
-  }
-  if (window.electronAPI && window.electronAPI.setOverlayMode) {
-    window.electronAPI.setOverlayMode(true);
-  }
-  startBtn.style.display = 'none';
-  stopBtn.style.display = 'inline-block';
-  setStatus('Ready. Press spacebar to record.', '');
-  answerContainer.innerText = 'Ask a question...';
-  isInterviewing = true;
-  lastTranscript = '';
-  controlsSection.style.display = 'none';
-  showAnswerContainer(true);
-  answerContainer.style.maxHeight = '80vh';
-  answerContainer.style.minHeight = '80px';
-  setMicActive(false);
-
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-    audioChunks = [];
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        audioChunks.push(event.data);
-      }
-    };
-    mediaRecorder.onstop = async () => {
-      if (audioChunks.length > 0 && isInterviewing) {
-        const blob = new Blob(audioChunks, { type: 'audio/webm' });
-        audioChunks = [];
-        await processAudioChunk(blob);
-      }
-    };
-    // Remove the old window event listener since we're using document
-    // window.addEventListener('keydown', handleSpacebar);
-  } catch (err) {
-    setStatus('Mic error: ' + err.message, 'error');
-    isInterviewing = false;
-    startBtn.style.display = 'inline-block';
-    stopBtn.style.display = 'none';
-    if (window.electronAPI && window.electronAPI.setOverlayMode) {
-      window.electronAPI.setOverlayMode(false);
-    }
-  }
-};
-
-stopBtn.onclick = () => {
-  isInterviewing = false;
-  isRecording = false;
-  setStatus('Interview stopped.', '');
-  startBtn.style.display = 'inline-block';
-  stopBtn.style.display = 'none';
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
-  if (stream) {
-    stream.getTracks().forEach(track => track.stop());
-    stream = null;
-  }
-  // Remove the old window event listener since we're using document
-  // window.removeEventListener('keydown', handleSpacebar);
-  answerContainer.innerText = 'Interview stopped.';
-  controlsSection.style.display = 'flex';
-  showAnswerContainer(false);
-  setMicActive(false);
-  if (window.electronAPI && window.electronAPI.setOverlayMode) {
-    window.electronAPI.setOverlayMode(false);
-  }
-};
-
-closeBtn.onclick = () => {
-  overlayContainer.style.display = 'none';
-  setMicActive(false);
-};
-
-// On load, hide answer container
-showAnswerContainer(false); 
+// Initialize the app when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+  new InterviewAssistant();
+}); 

@@ -2,72 +2,460 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Cluely-Clone</title>
+  <title>Cluely Clone - AI Interview Assistant</title>
   <style>
-    html, body {
-      width: 100%;
-      height: 100%;
+    * {
       margin: 0;
       padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       background: transparent;
       overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-app-region: drag;
     }
-    #answer-container {
+
+    .app-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    .glass-panel {
       position: absolute;
       top: 50px;
       left: 50%;
       transform: translateX(-50%);
-      min-width: 400px;
-      max-width: 700px;
-      background: rgba(30, 30, 30, 0.6);
-      color: #fff;
-      border-radius: 16px;
-      box-shadow: 0 4px 32px rgba(0,0,0,0.2);
-      padding: 32px 24px;
-      font-size: 1.3rem;
-      font-family: 'Segoe UI', Arial, sans-serif;
-      backdrop-filter: blur(8px);
-      z-index: 10;
-      text-align: left;
+      width: 90vw;
+      max-width: 800px;
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 24px;
+      padding: 32px;
+      box-shadow: 
+        0 8px 32px rgba(0, 0, 0, 0.1),
+        0 0 0 1px rgba(255, 255, 255, 0.1);
+      pointer-events: auto;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      transform-origin: center;
     }
-    #start-interview {
-      background: linear-gradient(90deg, #0078d4 0%, #005fa3 100%);
-      color: #fff;
+
+    .glass-panel:hover {
+      transform: translateX(-50%) scale(1.02);
+      box-shadow: 
+        0 16px 48px rgba(0, 0, 0, 0.15),
+        0 0 0 1px rgba(255, 255, 255, 0.2);
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .app-title {
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: -0.5px;
+    }
+
+    .control-buttons {
+      display: flex;
+      gap: 12px;
+    }
+
+    .control-btn {
+      width: 40px;
+      height: 40px;
       border: none;
-      padding: 10px 28px;
-      border-radius: 10px;
-      font-weight: bold;
-      font-size: 1.08rem;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.8);
       cursor: pointer;
-      box-shadow: 0 2px 8px rgba(0,120,212,0.10);
-      transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
-      outline: none;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      -webkit-app-region: no-drag;
     }
-    #start-interview:hover, #start-interview:focus {
-      background: linear-gradient(90deg, #005fa3 0%, #0078d4 100%);
-      box-shadow: 0 4px 16px rgba(0,120,212,0.18);
-      transform: translateY(-2px) scale(1.03);
+
+    .control-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: translateY(-2px);
+    }
+
+    .control-btn.close-btn:hover {
+      background: rgba(255, 99, 71, 0.3);
+      color: #ff6347;
+    }
+
+    .control-btn.minimize-btn:hover {
+      background: rgba(255, 193, 7, 0.3);
+      color: #ffc107;
+    }
+
+    .content-area {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .input-label {
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 14px;
+      font-weight: 500;
+      margin-left: 4px;
+    }
+
+    .glass-input {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 16px 20px;
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 16px;
+      transition: all 0.2s ease;
+      -webkit-app-region: no-drag;
+    }
+
+    .glass-input:focus {
+      outline: none;
+      border-color: rgba(100, 149, 237, 0.5);
+      background: rgba(255, 255, 255, 0.12);
+      box-shadow: 0 0 0 4px rgba(100, 149, 237, 0.1);
+    }
+
+    .glass-input::placeholder {
+      color: rgba(255, 255, 255, 0.4);
+    }
+
+    .provider-section {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .provider-select {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 12px 20px;
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 14px;
+      min-width: 160px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      -webkit-app-region: no-drag;
+    }
+
+    .provider-select:focus {
+      outline: none;
+      border-color: rgba(100, 149, 237, 0.5);
+      box-shadow: 0 0 0 4px rgba(100, 149, 237, 0.1);
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      margin-top: 16px;
+    }
+
+    .btn {
+      padding: 16px 32px;
+      border: none;
+      border-radius: 16px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      -webkit-app-region: no-drag;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      transition: left 0.5s;
+    }
+
+    .btn:hover::before {
+      left: 100%;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 32px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-danger {
+      background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+      color: white;
+      box-shadow: 0 8px 24px rgba(255, 107, 107, 0.3);
+    }
+
+    .btn-danger:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 32px rgba(255, 107, 107, 0.4);
+    }
+
+    .status-indicator {
+      text-align: center;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 14px;
+      min-height: 20px;
+      padding: 8px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .answer-container {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      padding: 24px;
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 16px;
+      line-height: 1.6;
+      min-height: 120px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    .answer-container.has-answer {
+      text-align: left;
+      align-items: flex-start;
+      justify-content: flex-start;
+    }
+
+    .mic-indicator {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      -webkit-app-region: no-drag;
+      z-index: 10000;
+    }
+
+    .mic-indicator:hover {
+      transform: scale(1.1);
+      background: rgba(255, 255, 255, 0.2);
+      border-color: rgba(255, 255, 255, 0.4);
+    }
+
+    .mic-indicator.recording {
+      background: rgba(255, 99, 71, 0.3);
+      border-color: #ff6347;
+      box-shadow: 0 0 20px rgba(255, 99, 71, 0.5);
+      animation: pulse 1.5s infinite;
+    }
+
+    .mic-indicator.recording .mic-icon {
+      color: #ff6347;
+      animation: micPulse 0.8s infinite;
+    }
+
+    @keyframes pulse {
+      0% { 
+        transform: scale(1);
+        box-shadow: 0 0 20px rgba(255, 99, 71, 0.5);
+      }
+      50% { 
+        transform: scale(1.05);
+        box-shadow: 0 0 30px rgba(255, 99, 71, 0.8);
+      }
+      100% { 
+        transform: scale(1);
+        box-shadow: 0 0 20px rgba(255, 99, 71, 0.5);
+      }
+    }
+
+    @keyframes micPulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.2); }
+      100% { transform: scale(1); }
+    }
+
+    .mic-icon {
+      width: 24px;
+      height: 24px;
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .fade-in {
+      animation: fadeIn 0.3s ease-in;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Scrollbar styling */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.5);
     }
   </style>
 </head>
 <body>
-  <div id="overlay-container" style="position:relative;width:100vw;height:100vh;">
-    <button id="close-overlay" title="Close" style="position:absolute;top:10px;right:20px;z-index:30;background:rgba(30,30,30,0.7);color:#fff;border:none;border-radius:50%;width:32px;height:32px;font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">&times;</button>
-    <button id="mic-toggle" title="Toggle Mic" style="position:absolute;top:10px;right:60px;z-index:30;background:rgba(30,30,30,0.7);color:#fff;border:none;border-radius:50%;width:32px;height:32px;font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s;"><span id="mic-icon" style="display:inline-block;width:18px;height:18px;"><svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a1 1 0 1 0-2 0 5 5 0 0 1-10 0 1 1 0 1 0-2 0 7 7 0 0 0 6 6.92V21a1 1 0 1 0 2 0v-2.08A7 7 0 0 0 19 12z"></path></svg></span></button>
-    <button id="drag-handle" title="Drag to move" style="position:absolute;top:10px;left:20px;z-index:30;background:rgba(30,30,30,0.7);color:#fff;border:none;border-radius:50%;width:32px;height:32px;font-size:1.2rem;cursor:move;display:flex;align-items:center;justify-content:center;transition:background 0.2s;"><svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"></path></svg></button>
-    <div id="controls" class="controls-section" style="position:absolute;top:30px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:12px;z-index:20;align-items:center;width:100%;max-width:700px;">
-      <textarea id="resume-text" placeholder="Paste your resume text here" rows="3" style="background:rgba(30,30,30,0.7);color:#fff;border:none;padding:8px 14px;border-radius:8px;width:100%;max-width:500px;resize:vertical;font-size:1rem;"></textarea>
-      <div style="display:flex;gap:12px;width:100%;max-width:500px;align-items:center;justify-content:center;">
-        <input type="password" id="api-key" placeholder="OpenAI API Key" style="background:rgba(30,30,30,0.7);color:#fff;border:none;padding:8px 12px;border-radius:8px;width:200px;font-size:1rem;" />
-        <button id="start-interview" style="background:#0078d4;color:#fff;border:none;padding:8px 18px;border-radius:8px;font-weight:bold;cursor:pointer;">Start Interview</button>
-        <button id="stop-interview" style="background:#d40022;color:#fff;border:none;padding:8px 18px;border-radius:8px;font-weight:bold;cursor:pointer;display:none;">Stop</button>
+  <div class="app-container">
+    <!-- Main Glass Panel -->
+    <div class="glass-panel" id="main-panel">
+      <div class="header">
+        <div class="drag-handle" id="drag-handle" title="Drag to move">⋮⋮</div>
+        <h1 class="app-title">🎯 AI Interview Assistant</h1>
+        <div class="control-buttons">
+          <button class="control-btn minimize-btn" id="minimize-btn" title="Minimize">─</button>
+          <button class="control-btn close-btn" id="close-btn" title="Close">×</button>
+        </div>
       </div>
-      <div id="status-indicator" style="margin-top:4px;color:#b0b0b0;font-size:0.98rem;min-height:20px;text-align:center;width:100%;max-width:500px;"></div>
+
+      <div class="content-area" id="setup-content">
+        <div class="input-group">
+          <label class="input-label">📄 Resume Content</label>
+          <textarea 
+            class="glass-input" 
+            id="resume-input" 
+            placeholder="Paste your resume here to help AI generate contextual answers..."
+            rows="4"
+          ></textarea>
+        </div>
+
+        <div class="provider-section">
+          <div class="input-group" style="flex: 1;">
+            <label class="input-label">🤖 AI Provider</label>
+            <select class="provider-select" id="provider-select">
+              <option value="ollama">Ollama (Local - Free)</option>
+              <option value="gemini">Google Gemini (Free)</option>
+              <option value="openai">OpenAI GPT (Paid)</option>
+              <option value="grok">Grok AI (Paid)</option>
+              <option value="claude">Anthropic Claude (Paid)</option>
+            </select>
+          </div>
+          
+          <div class="input-group ollama-field" id="ollama-model-group" style="flex: 1; display: none;">
+            <label class="input-label">📦 Ollama Model</label>
+            <select class="glass-input" id="ollama-model-select">
+              <option value="llama3">Llama 3 (8B)</option>
+              <option value="llama3:8b">Llama 3 (8B)</option>
+              <option value="llama3:14b">Llama 3 (14B)</option>
+              <option value="gpt-oss">GPT-OSS</option>
+              <option value="mistral">Mistral (7B)</option>
+              <option value="codellama">Code Llama</option>
+            </select>
+          </div>
+          
+          <div class="input-group" style="flex: 1;">
+            <label class="input-label">🔑 API Key</label>
+            <input 
+              type="password" 
+              class="glass-input" 
+              id="api-key-input" 
+              placeholder="Enter your API key (optional for free providers)"
+            />
+          </div>
+        </div>
+
+        <div class="action-buttons">
+          <button class="btn btn-primary" id="start-btn">🚀 Start Interview</button>
+        </div>
+
+        <div class="status-indicator" id="status-indicator">
+          Ready to start your AI-powered interview!
+        </div>
+      </div>
+
+      <!-- Interview Mode Content -->
+      <div class="content-area hidden" id="interview-content">
+        <div class="answer-container" id="answer-container">
+          🎤 Click the microphone or press SPACEBAR to start recording your question...
+        </div>
+        
+        <div class="action-buttons">
+          <button class="btn btn-danger" id="stop-btn">⏹️ Stop Interview</button>
+        </div>
+        
+        <div class="status-indicator" id="interview-status">
+          Interview mode active. Press SPACEBAR to record.
+        </div>
+      </div>
     </div>
-    <div id="answer-outer" style="display:flex;align-items:center;justify-content:center;width:100vw;height:100vh;position:absolute;top:0;left:0;pointer-events:none;">
-      <div id="answer-container" style="max-height:80vh;overflow-y:auto;word-break:break-word;padding:32px 24px;font-size:1.15rem;line-height:1.6;min-width:400px;max-width:700px;background:rgba(30,30,30,0.6);color:#fff;border-radius:16px;box-shadow:0 4px 32px rgba(0,0,0,0.2);backdrop-filter:blur(8px);z-index:10;text-align:left;display:block;pointer-events:auto;">Ask a question...</div>
+
+    <!-- Floating Microphone Button -->
+    <div class="mic-indicator hidden" id="mic-indicator">
+      <svg class="mic-icon" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a1 1 0 1 0-2 0 5 5 0 0 1-10 0 1 1 0 1 0-2 0 7 7 0 0 0 6 6.92V21a1 1 0 1 0 2 0v-2.08A7 7 0 0 0 19 12z"/>
+      </svg>
     </div>
   </div>
+
   <script src="renderer.js"></script>
 </body>
 </html> 

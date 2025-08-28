@@ -1,7 +1,7 @@
 {
   "name": "cluely-clone",
   "version": "1.0.0",
-  "description": "Transparent overlay Electron app for live OpenAI answers, hidden from dock and screen sharing.",
+  "description": "Multi-provider AI interview assistant with support for Google Gemini (free), OpenAI, Grok, and Claude. Transparent overlay Electron app for live AI answers, hidden from dock and screen sharing.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -26,7 +26,16 @@
       "icon": "icon.ico"
     },
     "linux": {
-      "target": ["AppImage"]
+      "target": [
+        { "target": "AppImage", "arch": ["x64"] }
+      ],
+      "category": "Utility",
+      "desktop": {
+        "Name": "Cluely Clone",
+        "Comment": "AI Interview Assistant",
+        "Keywords": "ai,interview,assistant,overlay",
+        "StartupWMClass": "cluely-clone"
+      }
     },
     "files": [
       "**/*",

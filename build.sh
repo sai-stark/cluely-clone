@@ -1,17 +1,36 @@
 #!/bin/bash
-set -e
 
-echo "Cleaning previous builds..."
-rm -rf dist/ build/ out/
+echo "🚀 Building Cluely Clone for Linux..."
 
-# Build for macOS (universal: arm64 and x64)
-echo "Building for macOS (arm64 and x64 DMG)..."
-npx electron-builder --mac --arm64 --x64
+# Check if Node.js is installed
+if ! command -v node &> /dev/null; then
+    echo "❌ Node.js is not installed. Please install Node.js first."
+    echo "   Run: curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt-get install -y nodejs"
+    exit 1
+fi
 
-echo "Building for Windows (exe)..."
-npx electron-builder --win --x64
+# Check if npm is installed
+if ! command -v npm &> /dev/null; then
+    echo "❌ npm is not installed. Please install npm first."
+    exit 1
+fi
 
-echo "Builds complete. Output files:"
-ls -lh dist/* || ls -lh out/* || ls -lh build/*
+# Install dependencies
+echo "📦 Installing dependencies..."
+npm install
 
-echo "\nmacOS DMGs and Windows EXE are in the dist/ folder." 
+# Build for Linux
+echo "🔨 Building for Linux..."
+npm run build
+
+echo "✅ Build completed!"
+echo "📁 Check the 'dist' folder for your Linux packages:"
+echo "   - .AppImage (portable, works on most Linux distros)"
+echo "   - .deb (Debian/Ubuntu package)"
+echo "   - .rpm (Red Hat/Fedora package)"
+
+# Show the built files
+if [ -d "dist" ]; then
+    echo "📋 Built files:"
+    ls -la dist/
+fi 
